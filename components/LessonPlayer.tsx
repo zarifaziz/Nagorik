@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCcw, Home, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Home, Download, ImageOff } from 'lucide-react';
 import { Slide, Language } from '../types';
 
 interface LessonPlayerProps {
@@ -11,6 +11,7 @@ interface LessonPlayerProps {
 
 const LessonPlayer: React.FC<LessonPlayerProps> = ({ slides, topic, language, onExit }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const nextSlide = () => {
     if (currentIndex < slides.length - 1) {
@@ -24,9 +25,16 @@ const LessonPlayer: React.FC<LessonPlayerProps> = ({ slides, topic, language, on
     }
   };
 
+  const handleImageError = (url: string) => {
+    setImageErrors(prev => ({ ...prev, [url]: true }));
+  };
+
   const currentSlide = slides[currentIndex];
   const isLastSlide = currentIndex === slides.length - 1;
   const progress = ((currentIndex + 1) / slides.length) * 100;
+  
+  // Check if current image has failed to load
+  const hasError = currentSlide.mediaUrl && imageErrors[currentSlide.mediaUrl];
 
   return (
     <div className="flex flex-col h-screen bg-soft-bg">
@@ -57,31 +65,48 @@ const LessonPlayer: React.FC<LessonPlayerProps> = ({ slides, topic, language, on
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 flex items-center justify-center">
-        <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col md:flex-row min-h-[60vh] md:h-[70vh] border border-gray-100">
+        <div className="w-full max-w-6xl bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col md:flex-row min-h-[60vh] md:h-[75vh] border border-gray-100">
           
           {/* Visual Side */}
-          <div className="w-full md:w-1/2 bg-gray-50 relative flex items-center justify-center p-4">
-            {currentSlide.isLoadingImage ? (
-              <div className="flex flex-col items-center text-gray-400">
-                <RefreshCcw className="w-8 h-8 animate-spin mb-2" />
-                <span className="text-sm">Generating visual...</span>
-              </div>
-            ) : (
-              <img 
-                src={currentSlide.imageUrl} 
-                alt={currentSlide.visualPrompt}
-                className="w-full h-full object-contain rounded-xl max-h-[50vh] md:max-h-none animate-fade-in"
-              />
-            )}
+          <div className="w-full md:w-3/5 bg-gray-100 relative flex items-center justify-center overflow-hidden group">
+             {currentSlide.mediaType === 'video' ? (
+                <video 
+                  src={currentSlide.mediaUrl} 
+                  controls 
+                  autoPlay
+                  loop
+                  className="w-full h-full object-cover"
+                />
+             ) : hasError ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
+                  <ImageOff className="w-16 h-16 mb-4" />
+                  <p className="font-semibold">Image not found</p>
+                  <p className="text-sm mt-2 max-w-xs">
+                    Please run <code className="bg-gray-200 px-1 rounded text-gray-600 font-mono">node generate_images.js</code> in your terminal to generate the local images.
+                  </p>
+                </div>
+             ) : (
+                <img 
+                  src={currentSlide.mediaUrl} 
+                  alt={currentSlide.visualPrompt}
+                  className="w-full h-full object-cover animate-fade-in transition-transform duration-1000 group-hover:scale-105"
+                  loading="eager"
+                  onError={() => currentSlide.mediaUrl && handleImageError(currentSlide.mediaUrl)}
+                />
+             )}
             
             {/* Slide Number Badge */}
-            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-sm font-bold text-gray-600 shadow-sm">
+            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-sm font-bold text-gray-600 shadow-sm z-10">
               {currentIndex + 1} / {slides.length}
             </div>
           </div>
 
           {/* Text Side */}
-          <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
+          <div className="w-full md:w-2/5 p-8 md:p-12 flex flex-col justify-center bg-white relative">
+            
+            {/* Decorative element */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-bangla-green/5 rounded-bl-full"></div>
+
             <h1 className={`text-3xl md:text-4xl font-extrabold text-gray-800 mb-6 leading-tight ${language === Language.BANGLA ? 'font-bengali' : ''}`}>
               {currentSlide.title}
             </h1>

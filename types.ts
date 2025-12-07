@@ -10,8 +10,9 @@ export interface SlideContent {
 }
 
 export interface Slide extends SlideContent {
-  imageUrl?: string; // Base64 or URL
-  isLoadingImage: boolean;
+  id?: string;
+  mediaType: 'image' | 'video';
+  mediaUrl?: string; // Base64 or URL
 }
 
 export interface LessonPlan {
@@ -22,6 +23,6 @@ export interface LessonPlan {
 export enum AppState {
   HOME,
   GENERATING_PLAN,
-  GENERATING_IMAGES,
+  GENERATING_MEDIA,
   PLAYING
 }

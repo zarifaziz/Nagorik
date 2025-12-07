@@ -1,124 +1,138 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Hero from './components/Hero';
-import TopicInput from './components/TopicInput';
 import LoadingScreen from './components/LoadingScreen';
 import LessonPlayer from './components/LessonPlayer';
-import { generateLessonText, generateSlideImage } from './services/geminiService';
-import { AppState, Language, Slide, LessonPlan } from './types';
+import { generateLessonText, getOrGenerateSlideImage } from './services/geminiService';
+import { AppState, Language, Slide } from './types';
+import { PRESET_LESSONS } from './data/presets';
 
 function App() {
   const [state, setState] = useState<AppState>(AppState.HOME);
-  const [language, setLanguage] = useState<Language>(Language.ENGLISH);
+  const [language, setLanguage] = useState<Language>(Language.BANGLA);
   const [currentTopic, setCurrentTopic] = useState<string>("");
   const [slides, setSlides] = useState<Slide[]>([]);
   const [progress, setProgress] = useState(0);
 
   // Function to start the lesson generation process
-  const handleStartLesson = useCallback(async (topic: string) => {
+  const handleStartLesson = useCallback(async (topic: string, isPreset: boolean = false, presetId?: string) => {
     setCurrentTopic(topic);
-    setState(AppState.GENERATING_PLAN);
-    setProgress(10);
+    
+    let initialSlides: Slide[] = [];
 
+    // Step 1: Get Content (Text)
     try {
-      // Step 1: Generate Text Content
-      const content = await generateLessonText(topic, language);
+      if (isPreset && presetId && PRESET_LESSONS[presetId]) {
+        // Use preset text
+        const presetData = PRESET_LESSONS[presetId];
+        const content = language === Language.BANGLA ? presetData.bn : presetData.en;
+        initialSlides = content.map((c, idx) => ({
+          ...c,
+          // We generate a stable ID for caching preset images: "preset-lessonId-slideIdx"
+          // This allows us to "pre-generate" them once and keep them forever in browser DB
+          id: `preset-${presetId}-${idx}`,
+          mediaType: 'image',
+          mediaUrl: undefined
+        }));
+      } else {
+        // Generate text via AI for custom topics
+        setState(AppState.GENERATING_PLAN);
+        setProgress(20);
+        const content = await generateLessonText(topic, language);
+        // Custom topics get ephemeral IDs or hashed IDs based on prompt
+        initialSlides = content.map((c, idx) => ({
+          ...c,
+          id: `custom-${Date.now()}-${idx}`,
+          mediaType: 'image',
+          mediaUrl: undefined
+        }));
+      }
+
+      // Step 2: Generate Media (Check Cache First)
+      setState(AppState.GENERATING_MEDIA);
+      setProgress(isPreset ? 10 : 30); 
       
-      const initialSlides: Slide[] = content.map(c => ({
-        ...c,
-        isLoadingImage: true
+      const totalSlides = initialSlides.length;
+      let completedMedia = 0;
+
+      // Generate images in parallel
+      const finalSlides = await Promise.all(initialSlides.map(async (slide, index) => {
+        try {
+          // Add a small delay for batched requests if we are generating fresh
+          if (!isPreset) await new Promise(r => setTimeout(r, index * 200));
+
+          // This service now checks IndexedDB first. 
+          // If the user has opened this lesson before, it returns INSTANTLY.
+          // If not, it generates via Gemini and saves it.
+          const url = await getOrGenerateSlideImage(slide.id || `slide-${index}`, slide.visualPrompt);
+          
+          completedMedia++;
+          const startP = isPreset ? 10 : 30;
+          setProgress(startP + (completedMedia / totalSlides) * (100 - startP));
+          
+          return { ...slide, mediaUrl: url };
+        } catch (e) {
+          console.error(`Media generation failed for slide ${index}`, e);
+          return { 
+            ...slide, 
+            mediaType: 'image' as const,
+            mediaUrl: 'https://placehold.co/800x600/f3f8f6/006a4e.png?text=Image+Error' 
+          };
+        }
       }));
 
-      setSlides(initialSlides);
-      setState(AppState.GENERATING_IMAGES);
-      setProgress(30);
-
-      // Step 2: Generate Images one by one (to show progress and avoid rate limits)
-      // We start the player immediately after getting text, but images load in background?
-      // For better UX, let's load at least the first image before showing player,
-      // or show a specific loading screen for "Generating Visuals".
-      // Let's do parallel requests with a small delay if needed, or sequential for safety.
-      
-      const newSlides = [...initialSlides];
-      
-      // We will transition to playing immediately to let user read, 
-      // but we need to manage the image generation in the background/effect
+      setSlides(finalSlides);
       setState(AppState.PLAYING);
-      
-      // Trigger background image generation
-      for (let i = 0; i < newSlides.length; i++) {
-        try {
-          const imageUrl = await generateSlideImage(newSlides[i].visualPrompt);
-          setSlides(prev => {
-            const updated = [...prev];
-            updated[i] = { ...updated[i], imageUrl, isLoadingImage: false };
-            return updated;
-          });
-        } catch (e) {
-          console.error(`Failed to load image for slide ${i}`, e);
-          setSlides(prev => {
-            const updated = [...prev];
-            updated[i] = { 
-              ...updated[i], 
-              imageUrl: 'https://picsum.photos/800/600', 
-              isLoadingImage: false 
-            };
-            return updated;
-          });
-        }
-      }
 
     } catch (error) {
       console.error("Error creating lesson:", error);
       alert(language === Language.ENGLISH ? "Sorry, something went wrong. Please try again." : "দুঃখিত, কিছু ভুল হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
       setState(AppState.HOME);
+      setCurrentTopic("");
     }
   }, [language]);
 
   const handleExit = () => {
-    if (confirm(language === Language.ENGLISH ? "Are you sure you want to exit?" : "আপনি কি নিশ্চিত যে আপনি বের হতে চান?")) {
-      setState(AppState.HOME);
-      setSlides([]);
-      setCurrentTopic("");
-    }
+    setState(AppState.HOME);
+    setSlides([]);
+    setCurrentTopic("");
   };
 
   return (
     <div className="min-h-screen font-sans text-slate-800 bg-soft-bg">
       {state === AppState.HOME && (
-        <div className="animate-fade-in">
-          <nav className="p-6 flex justify-between items-center max-w-7xl mx-auto">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-bangla-green rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                না
-              </div>
-              <span className="font-bold text-xl tracking-tight text-gray-800">Nagorik</span>
-            </div>
-          </nav>
-          
-          <div className="py-10">
-            {currentTopic === "" ? (
-              <Hero 
-                onStart={() => setCurrentTopic("selecting")} 
-                language={language}
-                setLanguage={setLanguage}
-              />
-            ) : (
-              <TopicInput 
-                onSubmit={handleStartLesson} 
-                language={language} 
-              />
-            )}
-          </div>
-        </div>
+        <Hero 
+          onSubmit={handleStartLesson} 
+          language={language}
+          setLanguage={setLanguage}
+        />
       )}
 
       {state === AppState.GENERATING_PLAN && (
         <LoadingScreen 
-          message={language === Language.ENGLISH ? "Writing lesson plan..." : "পাঠ পরিকল্পনা লিখছি..."}
+          message={language === Language.ENGLISH ? "Planning your lesson..." : "আপনার পাঠ পরিকল্পনা করছি..."}
           language={language}
           progress={progress}
         />
       )}
 
-      {state === AppState.GENERATING_IMAGES && (
+      {state === AppState.GENERATING_MEDIA && (
         <LoadingScreen 
+          message={language === Language.ENGLISH ? "Drawing illustrations..." : "ছবি আঁকা হচ্ছে..."}
+          language={language}
+          progress={progress}
+        />
+      )}
+
+      {state === AppState.PLAYING && (
+        <LessonPlayer 
+          slides={slides} 
+          topic={currentTopic} 
+          language={language}
+          onExit={handleExit}
+        />
+      )}
+    </div>
+  );
+}
+
+export default App;

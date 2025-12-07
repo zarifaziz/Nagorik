@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-nagorik---civics-for-everyone",
+  "name": "civics-for-everyone",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,7 +12,10 @@
     "@google/genai": "^1.31.0",
     "react": "^19.2.1",
     "lucide-react": "^0.556.0",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "path": "^0.12.7",
+    "url": "^0.11.4",
+    "fs": "^0.0.1-security"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,9 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language, SlideContent } from "../types";
+import { getImageFromDB, saveImageToDB } from "../utils/db";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Note: We will create fresh instances for specific calls to ensure API key freshness if needed
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateLessonText = async (topic: string, language: Language): Promise<SlideContent[]> => {
+  const ai = getAI();
   const langInstruction = language === Language.BANGLA 
     ? "The output fields 'title' and 'explanation' MUST be in Bengali (Bangla). The 'visualPrompt' MUST remain in English." 
     : "The output must be in English.";
@@ -18,7 +21,7 @@ export const generateLessonText = async (topic: string, language: Language): Pro
     For each slide, provide:
     1. A short, catchy title.
     2. A simple explanation (2-3 sentences max).
-    3. A visual prompt description to generate an illustration (keep this in English, describe a flat vector art style, friendly, educational).
+    3. A visual prompt description to generate an illustration. Describe a specific scene with characters (like a Bangladeshi boy or girl) doing the action. style: comic book.
   `;
 
   const response = await ai.models.generateContent({
@@ -53,27 +56,44 @@ export const generateLessonText = async (topic: string, language: Language): Pro
   }
 };
 
-export const generateSlideImage = async (prompt: string): Promise<string> => {
+// Generates an image or retrieves it from local IDB cache
+export const getOrGenerateSlideImage = async (id: string, prompt: string): Promise<string> => {
+  // 1. Check Local Cache
+  const cachedImage = await getImageFromDB(id);
+  if (cachedImage) {
+    console.log(`✨ Cache hit for ${id}`);
+    return cachedImage;
+  }
+
+  // 2. Generate if missing
+  console.log(`🎨 Generating new image for ${id}...`);
+  const ai = getAI();
   try {
-    // Enhanced prompt for consistency
-    const enhancedPrompt = `${prompt}. Style: minimalist flat vector illustration, pastel colors, educational, child-friendly, white background.`;
+    const enhancedPrompt = `
+      Create a high-quality, vibrant children's comic book style illustration for: "${prompt}".
+      Style: Pixar-style 3D render, cute, educational, vibrant colors, soft lighting, clear, NO TEXT in the image.
+      Context: Educational material for primary school children in Bangladesh.
+    `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: enhancedPrompt,
       config: {
         imageConfig: {
-          aspectRatio: "4:3" // Best for slides
+          aspectRatio: "4:3"
         }
       }
     });
 
-    // Extract image from parts
     const parts = response.candidates?.[0]?.content?.parts;
     if (parts) {
       for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          const base64Image = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          
+          // 3. Save to Local Cache
+          await saveImageToDB(id, base64Image);
+          return base64Image;
         }
       }
     }
@@ -81,7 +101,7 @@ export const generateSlideImage = async (prompt: string): Promise<string> => {
     throw new Error("No image data found in response");
   } catch (error) {
     console.error("Image generation error:", error);
-    // Fallback placeholder if generation fails to avoid breaking the UX completely
-    return `https://picsum.photos/800/600?blur=2`; 
+    // Return a colorful placeholder if generation fails, but don't cache it so we retry later
+    return `https://placehold.co/800x600/e0f2fe/006a4e.png?text=Image+Generation+Failed`; 
   }
 };

@@ -9,39 +9,45 @@ export interface PresetMeta {
   id: string;
   en: string;
   bn: string;
-  // We remove coverUrl here and will generate it on the fly or use a generic one initially
+  coverUrl: string;
 }
 
 export const PRESET_LIST: PresetMeta[] = [
   { 
     id: "washing-hands", 
     en: "Washing Hands Properly", 
-    bn: "সঠিকভাবে হাত ধোয়া"
+    bn: "সঠিকভাবে হাত ধোয়া",
+    coverUrl: "/covers/washing-hands.png"
   },
   { 
     id: "road-safety", 
     en: "Crossing the Road Safely", 
-    bn: "নিরাপদে রাস্তা পারাপার"
+    bn: "নিরাপদে রাস্তা পারাপার",
+    coverUrl: "/covers/road-safety.png"
   },
   { 
     id: "school-clean", 
     en: "Keeping Our School Clean", 
-    bn: "বিদ্যালয় পরিষ্কার রাখা"
+    bn: "বিদ্যালয় পরিষ্কার রাখা",
+    coverUrl: "/covers/school-clean.png"
   },
   { 
     id: "respect-elders", 
     en: "Respecting Elders", 
-    bn: "বড়দের সম্মান করা"
+    bn: "বড়দের সম্মান করা",
+    coverUrl: "/covers/respect-elders.png"
   },
   { 
     id: "wasting-water", 
     en: "Not Wasting Water", 
-    bn: "পানি অপচয় রোধ"
+    bn: "পানি অপচয় রোধ",
+    coverUrl: "/covers/wasting-water.png"
   },
   { 
     id: "standing-line", 
     en: "Standing in Line", 
-    bn: "লাইনে ধরে দাঁড়ানো"
+    bn: "লাইনে ধরে দাঁড়ানো",
+    coverUrl: "/covers/standing-line.png"
   },
 ];
 

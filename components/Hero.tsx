@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, BookOpen } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { Language } from '../types';
 import { PRESET_LIST } from '../data/presets';
 
@@ -91,12 +91,16 @@ const Hero: React.FC<HeroProps> = ({ onSubmit, language, setLanguage }) => {
                 onClick={() => onSubmit(language === Language.BANGLA ? preset.bn : preset.en, true, preset.id)}
                 className="group relative flex flex-col h-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 bg-white border border-gray-100 text-left"
               >
-                {/* Image Placeholder - since we are generating on demand now */}
-                <div className="h-full w-full overflow-hidden relative bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center group-hover:from-green-100 group-hover:to-emerald-200 transition-colors">
-                   <BookOpen className="w-16 h-16 text-bangla-green opacity-20" />
+                {/* Cover Image */}
+                <div className="h-full w-full overflow-hidden relative">
+                   <img 
+                     src={preset.coverUrl} 
+                     alt={language === Language.BANGLA ? preset.bn : preset.en}
+                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
+                   />
                    
                    {/* Gradient Overlay */}
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
+                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-90 group-hover:opacity-95 transition-opacity"></div>
                 </div>
 
                 {/* Content Overlay */}
